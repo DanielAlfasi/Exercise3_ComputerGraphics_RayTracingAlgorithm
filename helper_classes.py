@@ -103,7 +103,7 @@ class Ray:
 
             t, _ = result
             point_of_intersection = self.get_point_on_ray(t)
-            distance = np.linalg.norm(self.origin, point_of_intersection)
+            distance = np.linalg.norm(point_of_intersection - self.origin)
 
             if distance < min_distance:
                 min_distance = distance

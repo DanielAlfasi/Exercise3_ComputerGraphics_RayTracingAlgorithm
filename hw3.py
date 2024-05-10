@@ -41,6 +41,7 @@ def get_color(ambient, lights, objects, max_depth, ray, depth, color):
         color += calc_diffuse_color(nearest_intersection_obj, light, point_of_intersection)
         color += calc_specular_color(nearest_intersection_obj, light, point_of_intersection, ray.origin)
 
+    return color
     depth += 1
     if max_depth < depth:
         return color
@@ -55,7 +56,7 @@ def calc_diffuse_color(object, light_object, hit):
     light_direction_normalized = normalize(light_object.get_light_ray(hit).direction)
 
     dot_prod = np.dot(object_normal, light_direction_normalized)
-    return object.diffuse * light_object.intensity * dot_prod
+    return object.diffuse * light_object.get_intensity(hit) * dot_prod
 
 def calc_specular_color(object, light_object, hit, view_point):
     object_normal = normalize(object.normal)
@@ -65,7 +66,7 @@ def calc_specular_color(object, light_object, hit, view_point):
     light_direction_reflection_normalized = reflected(light_direction_normalized, object_normal)
     dot_prod = np.dot(v, light_direction_reflection_normalized)**object.shininess
 
-    return object.specular * light_object.intensity * dot_prod
+    return object.specular * light_object.get_intensity(hit) * dot_prod
 
 def is_object_obscured(light, object, hit, objects):
     ray = light.get_light_ray(hit)
