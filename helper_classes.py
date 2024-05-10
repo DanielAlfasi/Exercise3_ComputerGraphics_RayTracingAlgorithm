@@ -9,8 +9,8 @@ def normalize(vector):
 # This function gets a vector and the normal of the surface it hit
 # This function returns the vector that reflects from the surface
 def reflected(vector, axis):
-    # TODO:
-    v = np.array([0,0,0])
+    axis_normalized = normalize(axis)
+    v = vector - 2 * np.dot(np.dot(vector, axis_normalized), axis_normalized)
     return v
 
 ## Lights
@@ -25,22 +25,19 @@ class DirectionalLight(LightSource):
 
     def __init__(self, intensity, direction):
         super().__init__(intensity)
-        # TODO
+        self.direction = direction
 
-    # This function returns the ray that goes from the light source to a point
+    # This function returns the ray that goes from a point to the light source
     def get_light_ray(self,intersection_point):
-        # TODO
-        return Ray()
+        return Ray(intersection_point, self.direction)
 
     # This function returns the distance from a point to the light source
     def get_distance_from_light(self, intersection):
-        #TODO
-        pass
+        return np.inf
 
     # This function returns the light intensity at a point
     def get_intensity(self, intersection):
-        #TODO
-        pass
+        return self.intensity
 
 
 class PointLight(LightSource):
@@ -68,20 +65,24 @@ class PointLight(LightSource):
 class SpotLight(LightSource):
     def __init__(self, intensity, position, direction, kc, kl, kq):
         super().__init__(intensity)
-        # TODO
+        self.position = np.array(position)
+        self.kc = kc
+        self.kl = kl
+        self.kq = kq
+        self.direction = direction
 
-    # This function returns the ray that goes from the light source to a point
+    # This function returns the ray that goes from a point to the light source
     def get_light_ray(self, intersection):
-        #TODO
-        pass
+        return Ray(intersection ,self.position - intersection)
 
     def get_distance_from_light(self, intersection):
-        #TODO
-        pass
+        return np.linalg.norm(self.position - intersection)
 
     def get_intensity(self, intersection):
-        #TODO
-        pass
+        distance = self.get_distance_from_light(intersection)
+        nominator = self.intensity
+        denominator = self.kc + (self.kl * distance) + (self.kq * (distance**2))
+        return nominator / denominator
 
 
 class Ray:
@@ -92,11 +93,26 @@ class Ray:
     # The function is getting the collection of objects in the scene and looks for the one with minimum distance.
     # The function should return the nearest object and its distance (in two different arguments)
     def nearest_intersected_object(self, objects):
-        intersections = None
         nearest_object = None
         min_distance = np.inf
-        #TODO
+
+        for object in objects:
+            result = object.intersect(self)
+            if not result:
+                continue
+
+            t, _ = result
+            point_of_intersection = self.get_point_on_ray(t)
+            distance = np.linalg.norm(self.origin, point_of_intersection)
+
+            if distance < min_distance:
+                min_distance = distance
+                nearest_object = object
+
         return nearest_object, min_distance
+    
+    def get_point_on_ray(self, t):
+        return self.origin + t * self.direction
 
 
 class Object3D:
@@ -140,12 +156,45 @@ class Triangle(Object3D):
 
     # computes normal to the trainagle surface. Pay attention to its direction!
     def compute_normal(self):
-        # TODO
-        pass
+        vector_ab = self.b - self.a
+        vector_ac = self.c - self.a
+        return np.cross(vector_ab, vector_ac)
 
     def intersect(self, ray: Ray):
-        # TODO
-        pass
+        triangle_plane = Plane(self.normal, self.a)
+        point_of_intersection_tuple = triangle_plane.intersect(ray)
+        if point_of_intersection_tuple == None:
+            return None
+        
+        t, _ = point_of_intersection_tuple
+        point_of_intersection = ray.get_point_on_ray(t)
+        triangle_area = np.linalg.norm(self.normal) / 2
+        vector_pb = self.b - point_of_intersection
+        vector_pc = self.c - point_of_intersection
+        vector_pa = self.a - point_of_intersection
+
+        alpha = np.linalg.norm(np.cross(vector_pb, vector_pc)) / (triangle_area * 2)
+        beta = np.linalg.norm(np.cross(vector_pc, vector_pa)) / (triangle_area * 2)
+        gamma = 1 - alpha - beta
+
+        if (self.is_valid_barycentric_coordinates(alpha, beta, gamma)):
+            return t, self
+        
+        return None
+
+    def is_valid_barycentric_coordinates(self, alpha, beta, gamma, epsilon=1e-10):
+        if not (0 - epsilon <= alpha <= 1 + epsilon and
+                0 - epsilon <= beta <= 1 + epsilon and
+                0 - epsilon <= gamma <= 1 + epsilon):
+            return False
+    
+        if not (1 - epsilon <= alpha + beta + gamma <= 1 + epsilon):
+            return False
+
+        return True
+
+        
+
 
 class Pyramid(Object3D):
     """     
@@ -186,16 +235,20 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
                  [4,1,0],
                  [4,2,1],
                  [2,4,0]]
-        # TODO
+        for triangle_indices in t_idx:
+            a, b, c = triangle_indices
+            l.append(Triangle(self.v_list[a], self.v_list[b], self.v_list[c]))
+            
         return l
 
     def apply_materials_to_triangles(self):
-        # TODO
-        pass
+        for triangle in self.triangle_list:
+            triangle.set_material(self.ambient, self.diffuse, self.specular, self.shininess, self.reflection)
 
     def intersect(self, ray: Ray):
-        # TODO
-        pass
+        object, _ = ray.nearest_intersected_object(self.triangle_list)
+        return object.intersect(ray)
+
 
 class Sphere(Object3D):
     def __init__(self, center, radius: float):

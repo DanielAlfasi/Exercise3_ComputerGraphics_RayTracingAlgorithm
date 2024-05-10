@@ -17,15 +17,65 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
             ray = Ray(origin, direction)
 
             color = np.zeros(3)
-
-            # This is the main loop where each pixel color is computed.
-            # TODO
+            color = get_color(ambient, lights, objects, max_depth, ray, 0, color)
 
             
             # We clip the values between 0 and 1 so all pixel values will make sense.
             image[i, j] = np.clip(color,0,1)
 
     return image
+
+def get_color(ambient, lights, objects, max_depth, ray, depth, color):
+
+    nearest_intersection_obj, distance = ray.nearest_intersected_object(objects)                
+    t, _ = nearest_intersection_obj.intersect(ray)
+    if t is None:
+        print("Hello")
+    point_of_intersection = ray.get_point_on_ray(t)
+
+    color += calc_ambient_color(ambient, nearest_intersection_obj)
+
+    for light in lights:
+        if is_object_obscured(light, nearest_intersection_obj, point_of_intersection, objects):
+            continue
+        color += calc_diffuse_color(nearest_intersection_obj, light, point_of_intersection)
+        color += calc_specular_color(nearest_intersection_obj, light, point_of_intersection, ray.origin)
+
+    depth += 1
+    if max_depth < depth:
+        return color
+    
+
+        
+def calc_ambient_color(ambient, object):
+    return ambient * object.ambient
+
+def calc_diffuse_color(object, light_object, hit):
+    object_normal = normalize(object.normal)
+    light_direction_normalized = normalize(light_object.get_light_ray(hit).direction)
+
+    dot_prod = np.dot(object_normal, light_direction_normalized)
+    return object.diffuse * light_object.intensity * dot_prod
+
+def calc_specular_color(object, light_object, hit, view_point):
+    object_normal = normalize(object.normal)
+    v = normalize(view_point - hit)
+
+    light_direction_normalized = normalize((-1) * light_object.get_light_ray(hit).direction)
+    light_direction_reflection_normalized = reflected(light_direction_normalized, object_normal)
+    dot_prod = np.dot(v, light_direction_reflection_normalized)**object.shininess
+
+    return object.specular * light_object.intensity * dot_prod
+
+def is_object_obscured(light, object, hit, objects):
+    ray = light.get_light_ray(hit)
+
+    nearest_object , _ = ray.nearest_intersected_object(objects)
+
+    if nearest_object == object:
+        return False
+    
+    return True
 
 
 # Write your own objects and lights
