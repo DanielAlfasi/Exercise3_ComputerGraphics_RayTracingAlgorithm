@@ -16,8 +16,13 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
             direction = normalize(pixel - origin)
             ray = Ray(origin, direction)
 
-            color = np.zeros(3)
-            color = get_color(ambient, lights, objects, max_depth, ray, 0, color)
+            result = find_intersection_with_ray(ray, objects)   
+            
+            if result is not None:
+                nearest_intersection_obj, intersection_point = result
+                hit = elevate_point(nearest_intersection_obj, intersection_point)
+
+                color = get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, ray, 0)
 
             
             # We clip the values between 0 and 1 so all pixel values will make sense.
@@ -25,29 +30,29 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
 
     return image
 
-def get_color(ambient, lights, objects, max_depth, ray, depth, color):
-
-    nearest_intersection_obj, distance = ray.nearest_intersected_object(objects)                
-    t, _ = nearest_intersection_obj.intersect(ray)
-    if t is None:
-        print("Hello")
-    point_of_intersection = ray.get_point_on_ray(t)
-
-    color += calc_ambient_color(ambient, nearest_intersection_obj)
+def get_color(ambient, lights, nearest_object, point_of_intersection, objects, max_depth, ray, depth):
+    color = np.zeros(3)
+    color += calc_ambient_color(ambient, nearest_object)
 
     for light in lights:
-        if is_object_obscured(light, nearest_intersection_obj, point_of_intersection, objects):
+        if is_object_obscured(light, point_of_intersection, objects):
             continue
-        color += calc_diffuse_color(nearest_intersection_obj, light, point_of_intersection)
-        color += calc_specular_color(nearest_intersection_obj, light, point_of_intersection, ray.origin)
+        color += calc_diffuse_color(nearest_object, light, point_of_intersection)
+        color += calc_specular_color(nearest_object, light, point_of_intersection, ray.origin)
 
     return color
     depth += 1
     if max_depth < depth:
         return color
     
+def find_intersection_with_ray(ray, objects):
+    nearest_object, distance = ray.nearest_intersected_object(objects)
+    if nearest_object is None:
+        return None
+    
+    intersection_point = ray.origin + ray.direction * distance
+    return nearest_object, intersection_point
 
-        
 def calc_ambient_color(ambient, object):
     return ambient * object.ambient
 
@@ -68,17 +73,24 @@ def calc_specular_color(object, light_object, hit, view_point):
 
     return object.specular * light_object.get_intensity(hit) * dot_prod
 
-def is_object_obscured(light, object, hit, objects):
+def is_object_obscured(light, hit, objects):
     ray = light.get_light_ray(hit)
 
-    nearest_object , _ = ray.nearest_intersected_object(objects)
+    nearest_object , distance = ray.nearest_intersected_object(objects)
 
-    if nearest_object == object:
+    if nearest_object is None:
         return False
     
-    return True
+    if distance < light.get_distance_from_light(hit):
+        return True
+ 
+    return False
 
-
+def elevate_point(object, point):
+    if isinstance(object, Sphere):
+        return None
+    
+    return (object.normal * 0.01) + point
 # Write your own objects and lights
 # TODO
 def your_own_scene():

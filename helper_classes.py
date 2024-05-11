@@ -25,11 +25,11 @@ class DirectionalLight(LightSource):
 
     def __init__(self, intensity, direction):
         super().__init__(intensity)
-        self.direction = direction
+        self.direction = normalize(direction)
 
     # This function returns the ray that goes from a point to the light source
     def get_light_ray(self,intersection_point):
-        return Ray(intersection_point, self.direction)
+        return Ray(intersection_point, (-1) * self.direction)
 
     # This function returns the distance from a point to the light source
     def get_distance_from_light(self, intersection):
@@ -168,6 +168,9 @@ class Triangle(Object3D):
         
         t, _ = point_of_intersection_tuple
         point_of_intersection = ray.get_point_on_ray(t)
+        if self.barrycentric(point_of_intersection):
+            return t, self
+        return None
         triangle_area = np.linalg.norm(self.normal) / 2
         vector_pb = self.b - point_of_intersection
         vector_pc = self.c - point_of_intersection
@@ -182,6 +185,25 @@ class Triangle(Object3D):
         
         return None
 
+    def barrycentric(self, intersection_point):
+        p = intersection_point
+        pa = p - self.a
+        pb = p - self.b
+        pc = p - self.c
+
+        area_ABC = np.linalg.norm(np.cross(self.b - self.a, self.c - self.a))
+        area_PBC = np.linalg.norm(np.cross(pb, pc))
+        area_PCA = np.linalg.norm(np.cross(pc, pa))
+        area_PAB = np.linalg.norm(np.cross(pa, pb))
+
+        alpha = area_PBC / area_ABC
+        beta = area_PCA / area_ABC
+        gamma = area_PAB / area_ABC
+
+        return self.check_intersect_condition(alpha, beta, gamma)
+
+    def check_intersect_condition(self, alpha, beta, gamma):
+        return 0 <= alpha <= 1 and 0 <= beta <= 1 and 0 <= gamma <= 1 and np.abs(alpha+beta+gamma - 1) < 1e-6
     def is_valid_barycentric_coordinates(self, alpha, beta, gamma, epsilon=1e-10):
         if not (0 - epsilon <= alpha <= 1 + epsilon and
                 0 - epsilon <= beta <= 1 + epsilon and
