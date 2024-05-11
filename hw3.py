@@ -107,10 +107,40 @@ def is_object_obscured(light, hit, objects):
 
 def elevate_point(object, point):
     return (compute_normal_in_hit_point(object, point) * 0.01) + point
-# Write your own objects and lights
-# TODO
+
 def your_own_scene():
-    camera = np.array([0,0,1])
-    lights = []
-    objects = []
+    # Define the sphere
+    sphere = Sphere([-0.7, 0, -1], 1)
+    sphere.set_material([0.5, 0.3, 0.8], [1, 1, 1], [0.5, 0.5, 0.5], 50, 0.9)
+
+    # Define the diamond using a custom set of vertices for a pyramid-like shape
+    v_list = np.array([
+        [0.5, 0, -2],  # Base vertex A
+        [1.5, 0, -2],  # Base vertex B
+        [1.5, 1, -2],  # Base vertex C
+        [0.5, 1, -2],  # Base vertex D
+        [1, 0.5, -1]  # Top vertex E (apex)
+    ])
+    diamond = Pyramid(v_list)
+    diamond.set_material([1, 0, 0], [1, 1, 1], [0.3, 0.3, 0.3], 100, 0.9)
+
+    # Reflective floor
+    plane = Plane([0, 1, 0], [0, -1, 0])
+    plane.set_material([0.2, 0.2, 0.2], [0.2, 0.2, 0.2], [1, 1, 1], 1000, 0.5)
+
+    # Background for reflections
+    background = Plane([0, 0, 1], [0, 0, -3])
+    background.set_material([0.5, 0.5, 0.5], [0.5, 0.5, 0.5], [0.1, 0.1, 0.1], 10, 0.1)
+
+    # Lighting
+    point_light = PointLight(intensity=np.array([1, 1, 1]), position=np.array([0, 2, 0]), kc=0.1, kl=0.1, kq=0.1)
+    spotlight = SpotLight(intensity=np.array([1, 0, 0]), position=np.array([0, -0.5, 0]),
+                          direction=np.array([0, 0, -1]), kc=0.1, kl=0.1, kq=0.1)
+
+    # Camera setup
+    camera = np.array([0, 0.5, 1])
+
+    objects = [sphere, diamond, plane, background]
+    lights = [point_light, spotlight]
+
     return camera, lights, objects
