@@ -80,7 +80,10 @@ class SpotLight(LightSource):
 
     def get_intensity(self, intersection):
         distance = self.get_distance_from_light(intersection)
-        nominator = self.intensity
+        v_normalized = normalize(intersection - self.position)
+        d_normalized = normalize(self.direction)
+
+        nominator = self.intensity * (np.dot(v_normalized, d_normalized))
         denominator = self.kc + (self.kl * distance) + (self.kq * (distance**2))
         return nominator / denominator
 
@@ -163,59 +166,39 @@ class Triangle(Object3D):
     def intersect(self, ray: Ray):
         triangle_plane = Plane(self.normal, self.a)
         point_of_intersection_tuple = triangle_plane.intersect(ray)
-        if point_of_intersection_tuple == None:
+        if point_of_intersection_tuple is None:
             return None
         
         t, _ = point_of_intersection_tuple
         point_of_intersection = ray.get_point_on_ray(t)
-        if self.barrycentric(point_of_intersection):
+        if self.is_point_inside_triangle(point_of_intersection):
             return t, self
         return None
-        triangle_area = np.linalg.norm(self.normal) / 2
-        vector_pb = self.b - point_of_intersection
-        vector_pc = self.c - point_of_intersection
-        vector_pa = self.a - point_of_intersection
 
-        alpha = np.linalg.norm(np.cross(vector_pb, vector_pc)) / (triangle_area * 2)
-        beta = np.linalg.norm(np.cross(vector_pc, vector_pa)) / (triangle_area * 2)
-        gamma = 1 - alpha - beta
-
-        if (self.is_valid_barycentric_coordinates(alpha, beta, gamma)):
-            return t, self
-        
-        return None
-
-    def barrycentric(self, intersection_point):
+    def is_point_inside_triangle(self, intersection_point):
         p = intersection_point
-        pa = p - self.a
-        pb = p - self.b
-        pc = p - self.c
+        edge0 = self.b - self.a
+        edge1 = self.c - self.b
+        edge2 = self.a - self.c
+        to_point0 = p - self.a
+        to_point1 = p - self.b
+        to_point2 = p - self.c
 
-        area_ABC = np.linalg.norm(np.cross(self.b - self.a, self.c - self.a))
-        area_PBC = np.linalg.norm(np.cross(pb, pc))
-        area_PCA = np.linalg.norm(np.cross(pc, pa))
-        area_PAB = np.linalg.norm(np.cross(pa, pb))
+        total_area = np.linalg.norm(np.cross(edge0, self.c - self.a))
+        area1 = np.linalg.norm(np.cross(to_point0, to_point1))
+        area2 = np.linalg.norm(np.cross(to_point1, to_point2))
+        area3 = np.linalg.norm(np.cross(to_point2, to_point0))
 
-        alpha = area_PBC / area_ABC
-        beta = area_PCA / area_ABC
-        gamma = area_PAB / area_ABC
+        u = area1 / total_area
+        v = area2 / total_area
+        w = area3 / total_area
 
-        return self.check_intersect_condition(alpha, beta, gamma)
+        return self.validate_triangle_coords(u, v, w)
 
-    def check_intersect_condition(self, alpha, beta, gamma):
-        return 0 <= alpha <= 1 and 0 <= beta <= 1 and 0 <= gamma <= 1 and np.abs(alpha+beta+gamma - 1) < 1e-6
-    def is_valid_barycentric_coordinates(self, alpha, beta, gamma, epsilon=1e-10):
-        if not (0 - epsilon <= alpha <= 1 + epsilon and
-                0 - epsilon <= beta <= 1 + epsilon and
-                0 - epsilon <= gamma <= 1 + epsilon):
-            return False
-    
-        if not (1 - epsilon <= alpha + beta + gamma <= 1 + epsilon):
-            return False
+    def validate_triangle_coords(self, u, v, w):
+        epsilon = 1e-6
+        return (0 <= u <= 1) and (0 <= v <= 1) and (0 <= w <= 1) and (np.abs(u + v + w - 1) < epsilon)
 
-        return True
-
-        
 
 
 class Pyramid(Object3D):
@@ -269,6 +252,10 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
 
     def intersect(self, ray: Ray):
         object, _ = ray.nearest_intersected_object(self.triangle_list)
+        if object is None:
+            return None
+        
+        self.normal = object.normal
         return object.intersect(ray)
 
 
@@ -278,6 +265,29 @@ class Sphere(Object3D):
         self.radius = radius
 
     def intersect(self, ray: Ray):
-        #TODO
-        pass
+            L = self.center - ray.origin
+            tca = np.dot(L, ray.direction)
+            d2 = np.dot(L, L) - tca * tca
+            r2 = self.radius ** 2
+            
+            if d2 > r2:
+                return None
 
+            thc = np.sqrt(r2 - d2)
+            t0 = tca - thc
+            t1 = tca + thc
+
+            if t0 < 0 and t1 < 0:
+                return None
+            
+            if t0 < 0:
+                t0 = t1
+            if t1 < 0:
+                t1 = t0
+
+            t = min(t0, t1)
+            if t < 0:
+                return None
+            
+            return t, self
+    

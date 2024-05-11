@@ -22,15 +22,14 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
                 nearest_intersection_obj, intersection_point = result
                 hit = elevate_point(nearest_intersection_obj, intersection_point)
 
-                color = get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, ray, 0)
+                color = get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, ray, 0, camera)
 
-            
             # We clip the values between 0 and 1 so all pixel values will make sense.
             image[i, j] = np.clip(color,0,1)
 
     return image
 
-def get_color(ambient, lights, nearest_object, point_of_intersection, objects, max_depth, ray, depth):
+def get_color(ambient, lights, nearest_object, point_of_intersection, objects, max_depth, ray, depth, camera):
     color = np.zeros(3)
     color += calc_ambient_color(ambient, nearest_object)
 
@@ -38,7 +37,7 @@ def get_color(ambient, lights, nearest_object, point_of_intersection, objects, m
         if is_object_obscured(light, point_of_intersection, objects):
             continue
         color += calc_diffuse_color(nearest_object, light, point_of_intersection)
-        color += calc_specular_color(nearest_object, light, point_of_intersection, ray.origin)
+        color += calc_specular_color(nearest_object, light, point_of_intersection, camera)
 
     
     depth += 1
@@ -50,7 +49,7 @@ def get_color(ambient, lights, nearest_object, point_of_intersection, objects, m
     if result is not None:
         nearest_intersection_obj, intersection_point = result
         hit = elevate_point(nearest_intersection_obj, intersection_point)
-        color += nearest_object.reflection * get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, reflective_ray, depth)
+        color += nearest_object.reflection * get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, reflective_ray, depth, camera)
     return color
     
 def construct_reflective_ray(ray, object, hit):
@@ -61,7 +60,7 @@ def construct_reflective_ray(ray, object, hit):
     
 def compute_normal_in_hit_point(object, point):
     if isinstance(object, Sphere):
-        return None
+        return normalize(point - object.center)
     
     return object.normal
 
@@ -77,14 +76,14 @@ def calc_ambient_color(ambient, object):
     return ambient * object.ambient
 
 def calc_diffuse_color(object, light_object, hit):
-    object_normal = normalize(object.normal)
+    object_normal = normalize(compute_normal_in_hit_point(object, hit))
     light_direction_normalized = normalize(light_object.get_light_ray(hit).direction)
 
     dot_prod = np.dot(object_normal, light_direction_normalized)
     return object.diffuse * light_object.get_intensity(hit) * dot_prod
 
 def calc_specular_color(object, light_object, hit, view_point):
-    object_normal = normalize(object.normal)
+    object_normal = normalize(compute_normal_in_hit_point(object, hit))
     v = normalize(view_point - hit)
 
     light_direction_normalized = normalize((-1) * light_object.get_light_ray(hit).direction)
