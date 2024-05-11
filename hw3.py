@@ -40,11 +40,31 @@ def get_color(ambient, lights, nearest_object, point_of_intersection, objects, m
         color += calc_diffuse_color(nearest_object, light, point_of_intersection)
         color += calc_specular_color(nearest_object, light, point_of_intersection, ray.origin)
 
-    return color
+    
     depth += 1
-    if max_depth < depth:
+    if max_depth <= depth:
         return color
     
+    reflective_ray = construct_reflective_ray(ray, nearest_object, point_of_intersection)
+    result = find_intersection_with_ray(reflective_ray, objects)
+    if result is not None:
+        nearest_intersection_obj, intersection_point = result
+        hit = elevate_point(nearest_intersection_obj, intersection_point)
+        color += nearest_object.reflection * get_color(ambient, lights, nearest_intersection_obj, hit, objects, max_depth, reflective_ray, depth)
+    return color
+    
+def construct_reflective_ray(ray, object, hit):
+    L = normalize(ray.direction)
+    N = normalize(compute_normal_in_hit_point(object, hit))
+
+    return Ray(hit, L - 2 * (np.dot(L, N)) * N)
+    
+def compute_normal_in_hit_point(object, point):
+    if isinstance(object, Sphere):
+        return None
+    
+    return object.normal
+
 def find_intersection_with_ray(ray, objects):
     nearest_object, distance = ray.nearest_intersected_object(objects)
     if nearest_object is None:
@@ -87,10 +107,7 @@ def is_object_obscured(light, hit, objects):
     return False
 
 def elevate_point(object, point):
-    if isinstance(object, Sphere):
-        return None
-    
-    return (object.normal * 0.01) + point
+    return (compute_normal_in_hit_point(object, point) * 0.01) + point
 # Write your own objects and lights
 # TODO
 def your_own_scene():
